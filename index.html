@@ -201,6 +201,7 @@
   </main>
 
   <script>
+    const IS_GITHUB_PAGES = location.hostname.endsWith('github.io');
     const API_BASE = location.protocol.startsWith('http') ? location.origin : null;
     const $ = (id) => document.getElementById(id);
     let mode = 'path';
@@ -225,6 +226,18 @@
     function setConnection(ok, text) {
       $('connDot').className = 'dot ' + (ok ? 'ok' : 'bad');
       $('connText').textContent = text;
+    }
+
+    function renderStaticPagesNotice() {
+      setConnection(false, 'GitHub Pages 靜態展示版');
+      $('jobTitle').textContent = 'GitHub Pages 無法執行 Python 後端';
+      $('jobMeta').innerHTML = '這個網址只會提供畫面與原始碼展示；影音轉字幕需要在你的電腦執行 <code>server.py</code>，或另外部署 Python 後端服務。';
+      $('preview').textContent = '本機使用方式：\n\ncd /c/Users/Jerry/subtitle_tool\n./.venv/Scripts/python server.py\n\n然後開啟：\nhttp://127.0.0.1:8766/';
+      $('log').textContent = '原因：GitHub Pages 只能放 HTML/CSS/JavaScript 靜態檔，不能執行 faster-whisper、ffmpeg 或 Python API。';
+      $('events').innerHTML = '<div class="event"><b>提示</b>　若要讓網路上任何人都能轉字幕，需要把後端部署到支援 Python 的平台，例如 Render、Railway、Fly.io、VPS 或 Hugging Face Spaces。</div>';
+      $('downloads').innerHTML = '<div class="download"><div><b>目前頁面可作為 UI 展示</b><div class="muted">完整轉檔功能請使用本機伺服器。</div></div><a href="https://github.com/JerryASPX/MP3ToSRT">查看原始碼</a></div>';
+      $('startBtn').disabled = true;
+      $('startBtn').textContent = 'GitHub Pages 無後端，請用本機版';
     }
 
     function renderStatus(status) {
@@ -255,6 +268,10 @@
     }
 
     async function refresh() {
+      if (IS_GITHUB_PAGES) {
+        renderStaticPagesNotice();
+        return;
+      }
       try {
         const status = await api('/api/status');
         renderStatus(status);

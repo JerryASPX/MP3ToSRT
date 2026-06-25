@@ -24,6 +24,31 @@ http://127.0.0.1:8766/
 - 顯示轉檔狀態、字幕預覽、下載連結
 - 分析上下文並依詞庫修正可能錯字，例如「換姿術」→「換姿勢」
 
+## GitHub Pages 注意事項
+
+GitHub Pages 網址：
+
+```text
+https://jerryaspx.github.io/MP3ToSRT/
+```
+
+這個網址只能展示單頁 UI 與原始碼，不能直接轉字幕。原因是 GitHub Pages 只能執行靜態 HTML/CSS/JavaScript，不能執行本工具需要的 Python、faster-whisper、ffmpeg 後端。
+
+要實際轉字幕，請在本機啟動：
+
+```bash
+cd /c/Users/Jerry/subtitle_tool
+./.venv/Scripts/python server.py
+```
+
+然後開啟：
+
+```text
+http://127.0.0.1:8766/
+```
+
+若要讓網路上的使用者也能直接轉字幕，需要另外部署 Python 後端到 Render、Railway、Fly.io、VPS 或 Hugging Face Spaces 等支援長時間運算與檔案上傳的平台。
+
 ## 命令列版本
 
 這個工具可以把影片檔或音檔轉成字幕檔：
