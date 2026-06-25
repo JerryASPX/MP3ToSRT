@@ -1,0 +1,10 @@
+{
+  "description": "影音轉字幕後的常見錯字修正詞庫。wrong=辨識錯字，right=修正後文字，hints=上下文中出現任一提示詞才套用；hints 空陣列代表總是套用。",
+  "rules": [
+    {"wrong": "換姿術", "right": "換姿勢", "hints": ["出門", "活動", "手", "酸", "姿"]},
+    {"wrong": "資術", "right": "姿勢", "hints": ["換", "活動", "手", "酸"]},
+    {"wrong": "姿術", "right": "姿勢", "hints": ["換", "活動", "手", "酸"]},
+    {"wrong": "字幕黨", "right": "字幕檔", "hints": ["上傳", "YouTube", "SRT", "VTT", "檔案"]},
+    {"wrong": "優兔", "right": "YouTube", "hints": ["字幕", "上傳", "影片"]}
+  ]
+}

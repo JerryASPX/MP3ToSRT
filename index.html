@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>影音轉字幕工具｜台灣繁中 / YouTube SRT VTT</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c1222;
+      --panel: rgba(17, 25, 43, .92);
+      --panel2: rgba(29, 41, 66, .8);
+      --line: rgba(148, 163, 184, .23);
+      --text: #e5eefc;
+      --muted: #9fb0ca;
+      --brand: #63e6be;
+      --brand2: #60a5fa;
+      --danger: #fb7185;
+      --warn: #fbbf24;
+      --ok: #34d399;
+      --shadow: 0 30px 80px rgba(0,0,0,.38);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(96,165,250,.28), transparent 34rem),
+        radial-gradient(circle at top right, rgba(99,230,190,.18), transparent 30rem),
+        linear-gradient(135deg, #07111f 0%, var(--bg) 52%, #111827 100%);
+    }
+    .wrap { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 52px; }
+    header { display: flex; gap: 18px; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
+    h1 { font-size: clamp(30px, 4vw, 52px); line-height: 1.02; margin: 0 0 12px; letter-spacing: -.04em; }
+    .lead { color: var(--muted); font-size: 17px; line-height: 1.75; margin: 0; max-width: 720px; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px; background: rgba(15,23,42,.62); color: var(--muted); font-size: 14px; white-space: nowrap; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 20px var(--warn); }
+    .dot.ok { background: var(--ok); box-shadow: 0 0 20px var(--ok); }
+    .dot.bad { background: var(--danger); box-shadow: 0 0 20px var(--danger); }
+    .grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; align-items: start; }
+    @media (max-width: 860px) { .grid, header { grid-template-columns: 1fr; display: grid; } }
+    .card { border: 1px solid var(--line); border-radius: 26px; background: var(--panel); box-shadow: var(--shadow); overflow: hidden; }
+    .card h2 { margin: 0; padding: 22px 24px 0; font-size: 20px; }
+    .body { padding: 22px 24px 24px; }
+    label { display: block; font-weight: 700; margin: 16px 0 8px; color: #d9e7fb; }
+    .hint { color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.5; }
+    input, select, textarea, button {
+      font: inherit;
+    }
+    input[type="text"], input[type="file"], select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(2,6,23,.54);
+      color: var(--text);
+      padding: 13px 14px;
+      outline: none;
+    }
+    input[type="checkbox"] { accent-color: var(--brand); width: 18px; height: 18px; vertical-align: middle; }
+    .row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+    @media (max-width: 640px) { .row { grid-template-columns: 1fr; } }
+    .tabs { display: flex; gap: 8px; padding: 8px; background: rgba(15,23,42,.5); border: 1px solid var(--line); border-radius: 18px; margin-bottom: 16px; }
+    .tab { flex: 1; border: 0; border-radius: 13px; padding: 12px; background: transparent; color: var(--muted); cursor: pointer; }
+    .tab.active { background: linear-gradient(135deg, rgba(99,230,190,.18), rgba(96,165,250,.18)); color: var(--text); border: 1px solid rgba(99,230,190,.28); }
+    .primary { width: 100%; border: 0; cursor: pointer; border-radius: 18px; padding: 15px 18px; margin-top: 18px; font-weight: 900; color: #03111b; background: linear-gradient(135deg, var(--brand), var(--brand2)); box-shadow: 0 16px 42px rgba(96,165,250,.24); }
+    .primary:disabled { filter: grayscale(.8); opacity: .6; cursor: not-allowed; }
+    .secondary { border: 1px solid var(--line); background: rgba(15,23,42,.7); color: var(--text); border-radius: 14px; padding: 10px 12px; cursor: pointer; }
+    .hidden { display: none !important; }
+    .statusBox { background: var(--panel2); border: 1px solid var(--line); border-radius: 20px; padding: 16px; margin-bottom: 14px; }
+    .statusTitle { display:flex; align-items:center; justify-content:space-between; gap:12px; font-weight: 900; }
+    .muted { color: var(--muted); }
+    .progress { height: 10px; border-radius: 999px; overflow: hidden; background: rgba(148,163,184,.16); margin-top: 14px; }
+    .bar { width: 12%; height: 100%; background: linear-gradient(90deg, var(--brand), var(--brand2)); border-radius: inherit; transition: width .4s ease; }
+    .bar.running { animation: pulse 1.25s infinite ease-in-out; width: 68%; }
+    .bar.done { width: 100%; }
+    .bar.fail { width: 100%; background: var(--danger); }
+    @keyframes pulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }
+    .downloads { display: grid; gap: 10px; margin-top: 12px; }
+    .download { display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: rgba(2,6,23,.42); }
+    a { color: #93c5fd; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    pre { white-space: pre-wrap; word-break: break-word; max-height: 310px; overflow: auto; margin: 0; padding: 14px; background: rgba(2,6,23,.62); border: 1px solid var(--line); border-radius: 16px; color: #dbeafe; }
+    .events { display:grid; gap: 8px; max-height: 260px; overflow:auto; }
+    .event { padding: 10px 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(2,6,23,.36); color: var(--muted); }
+    .event.error { border-color: rgba(251,113,133,.38); color: #fecdd3; }
+    .footer { margin-top: 18px; color: var(--muted); font-size: 13px; text-align: center; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div>
+        <h1>影音轉字幕工具</h1>
+        <p class="lead">把 MP4、MOV、MP3、WAV、M4A 轉成 <b>SRT</b>、<b>VTT</b> 和純文字逐字稿。預設輸出「台灣中文繁體」，SRT / VTT 可直接上傳 YouTube。</p>
+      </div>
+      <div class="pill"><span id="connDot" class="dot"></span><span id="connText">連線檢查中</span></div>
+    </header>
+
+    <section class="grid">
+      <div class="card">
+        <h2>選擇來源</h2>
+        <div class="body">
+          <div class="tabs">
+            <button class="tab active" id="tabPath" type="button">本機路徑</button>
+            <button class="tab" id="tabUpload" type="button">上傳檔案</button>
+          </div>
+
+          <form id="pathForm">
+            <label for="inputPath">影片 / 音檔路徑</label>
+            <input id="inputPath" type="text" value="C:\Users\Jerry\Downloads\我家公仔-1.mp4" placeholder="例如 C:\Users\Jerry\Downloads\video.mp4" />
+            <div class="hint">如果檔案已經在這台電腦，建議用路徑模式，不用重新上傳大檔案。</div>
+          </form>
+
+          <form id="uploadForm" class="hidden">
+            <label for="mediaFile">選擇影片 / 音檔</label>
+            <input id="mediaFile" name="media" type="file" accept="video/*,audio/*,.mp4,.mov,.mp3,.wav,.m4a,.aac,.flac,.mkv" />
+            <div class="hint">大檔案會先複製到工具資料夾，再開始轉字幕。</div>
+          </form>
+
+          <label for="outputDir">輸出資料夾</label>
+          <input id="outputDir" type="text" value="C:\Users\Jerry\Downloads" />
+
+          <div class="row">
+            <div>
+              <label for="language">語言</label>
+              <select id="language">
+                <option value="zh" selected>中文 zh</option>
+                <option value="en">英文 en</option>
+                <option value="ja">日文 ja</option>
+                <option value="">自動偵測</option>
+              </select>
+            </div>
+            <div>
+              <label for="model">辨識模型</label>
+              <select id="model">
+                <option value="base">base｜較快</option>
+                <option value="small">small｜平衡</option>
+                <option value="medium" selected>medium｜較準</option>
+                <option value="large-v3">large-v3｜最準較慢</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label for="format">輸出格式</label>
+              <select id="format">
+                <option value="all" selected>SRT + VTT + TXT</option>
+                <option value="srt">只產生 SRT</option>
+                <option value="vtt">只產生 VTT</option>
+                <option value="txt">只產生 TXT</option>
+              </select>
+            </div>
+            <div>
+              <label for="chinese">中文輸出</label>
+              <select id="chinese">
+                <option value="tw" selected>台灣繁體中文</option>
+                <option value="t">一般繁體中文</option>
+                <option value="hk">香港繁體中文</option>
+                <option value="none">不轉換</option>
+              </select>
+            </div>
+          </div>
+
+          <label><input id="vad" type="checkbox" checked /> 跳過靜音 / 噪音區段</label>
+          <label><input id="autoCorrect" type="checkbox" checked /> 分析上下文並自動修正可能錯字</label>
+          <div class="hint">錯字修正會參考整段逐字稿與 <code>corrections.json</code> 詞庫，例如把「換姿術」修成「換姿勢」。</div>
+          <button id="startBtn" class="primary" type="button">開始產生字幕</button>
+          <div class="hint">第一次使用某個模型時會下載模型；94MB 影片在 CPU 上可能需要幾分鐘。</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>轉檔狀態</h2>
+        <div class="body">
+          <div class="statusBox">
+            <div class="statusTitle"><span id="jobTitle">尚未開始</span><button id="refreshBtn" class="secondary" type="button">重新整理</button></div>
+            <div id="jobMeta" class="muted" style="margin-top:8px">等待操作。</div>
+            <div class="progress"><div id="bar" class="bar"></div></div>
+          </div>
+
+          <div id="downloads" class="downloads"></div>
+
+          <label>字幕預覽</label>
+          <pre id="preview">完成後會在這裡顯示 SRT 預覽。</pre>
+
+          <label>執行記錄</label>
+          <pre id="log">尚無記錄。</pre>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:18px">
+      <h2>事件紀錄</h2>
+      <div class="body"><div id="events" class="events"></div></div>
+    </section>
+
+    <div class="footer">本工具只在你的電腦本機執行：<code>http://127.0.0.1:8766/</code></div>
+  </main>
+
+  <script>
+    const API_BASE = location.protocol.startsWith('http') ? location.origin : null;
+    const $ = (id) => document.getElementById(id);
+    let mode = 'path';
+    let pollTimer = null;
+
+    async function api(path, options = {}) {
+      if (!API_BASE) throw new Error('請透過本機伺服器開啟，不要直接用 file:// 開啟。');
+      const res = await fetch(API_BASE + path, options);
+      const data = await res.json();
+      if (!res.ok || data.ok === false) throw new Error(data.error || `HTTP ${res.status}`);
+      return data;
+    }
+
+    function setTab(next) {
+      mode = next;
+      $('tabPath').classList.toggle('active', mode === 'path');
+      $('tabUpload').classList.toggle('active', mode === 'upload');
+      $('pathForm').classList.toggle('hidden', mode !== 'path');
+      $('uploadForm').classList.toggle('hidden', mode !== 'upload');
+    }
+
+    function setConnection(ok, text) {
+      $('connDot').className = 'dot ' + (ok ? 'ok' : 'bad');
+      $('connText').textContent = text;
+    }
+
+    function renderStatus(status) {
+      setConnection(true, '後端已連線');
+      const job = status.job;
+      const bar = $('bar');
+      bar.className = 'bar';
+      if (!job) {
+        $('jobTitle').textContent = '尚未開始';
+        $('jobMeta').textContent = '等待操作。';
+        $('downloads').innerHTML = '';
+        return;
+      }
+      const name = (job.input_path || '').split(/[\\/]/).pop();
+      $('jobTitle').textContent = job.status === 'running' ? '轉檔中…' : job.status === 'completed' ? '已完成' : '轉檔失敗';
+      $('jobMeta').textContent = `${name || '檔案'}｜模型 ${job.model || 'medium'}｜${job.started_at || ''}${job.finished_at ? ' → ' + job.finished_at : ''}`;
+      bar.classList.add(job.status === 'running' ? 'running' : job.status === 'completed' ? 'done' : 'fail');
+      $('log').textContent = job.log || job.error || '尚無記錄。';
+      $('preview').textContent = job.preview || '完成後會在這裡顯示 SRT 預覽。';
+      $('downloads').innerHTML = (job.downloads || []).map(item => `
+        <div class="download">
+          <div><b>${item.name}</b><div class="muted">${item.path}｜${item.size} bytes</div></div>
+          <a href="${item.url}">下載</a>
+        </div>`).join('');
+      $('events').innerHTML = (status.events || []).map(ev => `<div class="event ${ev.level === 'error' ? 'error' : ''}"><b>${ev.time}</b>　${ev.message}</div>`).join('') || '<div class="event">尚無事件。</div>';
+      if (job.status === 'running') startPolling();
+      else stopPolling();
+    }
+
+    async function refresh() {
+      try {
+        const status = await api('/api/status');
+        renderStatus(status);
+      } catch (err) {
+        setConnection(false, '後端未連線');
+        $('jobTitle').textContent = '無法連線';
+        $('jobMeta').textContent = err.message;
+      }
+    }
+
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(refresh, 2500);
+    }
+    function stopPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    async function start() {
+      $('startBtn').disabled = true;
+      $('startBtn').textContent = '送出中…';
+      try {
+        if (mode === 'path') {
+          await api('/api/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              input_path: $('inputPath').value.trim(),
+              output_dir: $('outputDir').value.trim(),
+              language: $('language').value,
+              model: $('model').value,
+              format: $('format').value,
+              chinese: $('chinese').value,
+              vad_filter: $('vad').checked,
+              auto_correct: $('autoCorrect').checked,
+            })
+          });
+        } else {
+          const file = $('mediaFile').files[0];
+          if (!file) throw new Error('請先選擇影片或音檔。');
+          const form = new FormData();
+          form.append('media', file);
+          form.append('output_dir', $('outputDir').value.trim());
+          form.append('language', $('language').value);
+          form.append('model', $('model').value);
+          form.append('format', $('format').value);
+          form.append('chinese', $('chinese').value);
+          form.append('vad_filter', $('vad').checked ? 'true' : 'false');
+          form.append('auto_correct', $('autoCorrect').checked ? 'true' : 'false');
+          await api('/api/upload-and-transcribe', { method: 'POST', body: form });
+        }
+        await refresh();
+        startPolling();
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        $('startBtn').disabled = false;
+        $('startBtn').textContent = '開始產生字幕';
+      }
+    }
+
+    $('tabPath').addEventListener('click', () => setTab('path'));
+    $('tabUpload').addEventListener('click', () => setTab('upload'));
+    $('startBtn').addEventListener('click', start);
+    $('refreshBtn').addEventListener('click', refresh);
+    refresh();
+  </script>
+</body>
+</html>
