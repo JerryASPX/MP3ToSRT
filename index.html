@@ -233,11 +233,10 @@
       setTab('upload');
       $('tabPath').disabled = true;
       $('outputDir').disabled = true;
-      $('model').value = 'base';
       $('jobTitle').textContent = '可直接在瀏覽器產生字幕';
       $('jobMeta').innerHTML = 'GitHub Pages 版會在你的瀏覽器內執行 Whisper 模型，不需要 Python 後端；請用「上傳檔案」選擇影片或音檔。';
-      $('preview').textContent = '請選擇影片/音檔後按「開始產生字幕」。瀏覽器版已預設最快 tiny 模型；第一次會下載模型，影片越長等待越久。';
-      $('log').textContent = '瀏覽器版適合短音檔或短影片。若檔案超過數分鐘，頁面可能看起來暫時沒有反應；長影片建議使用本機 Python 版。';
+      $('preview').textContent = '請選擇影片/音檔後按「開始產生字幕」。第一次使用會下載瀏覽器端模型，可能需要較久；檔案不會上傳到伺服器。';
+      $('log').textContent = '瀏覽器版使用 transformers.js / WebAssembly 執行語音辨識。若影片很長或電腦較慢，建議仍使用本機 Python 版。';
       $('events').innerHTML = '<div class="event"><b>GitHub Pages 模式</b>　檔案會留在你的瀏覽器中處理，完成後可下載 SRT / VTT / TXT。</div>';
       $('downloads').innerHTML = '';
       $('startBtn').disabled = false;
@@ -404,14 +403,6 @@
       }).join('');
     }
 
-    function appendLog(message) {
-      $('log').textContent = `${new Date().toLocaleTimeString()} ${message}\n` + $('log').textContent.slice(0, 4000);
-    }
-
-    function uiTick() {
-      return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-    }
-
     async function decodeFileToAudio(file) {
       const arrayBuffer = await file.arrayBuffer();
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -435,38 +426,22 @@
       $('jobMeta').textContent = `${file.name}｜模型 ${modelId($('model').value)}｜請保持頁面開啟`;
       $('bar').className = 'bar running';
       $('downloads').innerHTML = '';
-      $('preview').textContent = '準備載入瀏覽器端模型…';
-      $('log').textContent = '';
-      appendLog('準備中。瀏覽器版第一次會下載模型，長檔案可能需要很久。');
-      appendLog(`檔案大小：約 ${(file.size / 1024 / 1024).toFixed(1)} MB`);
-      if (file.size > 50 * 1024 * 1024) {
-        appendLog('提醒：檔案超過 50MB，瀏覽器可能看起來暫時沒有反應；建議長影片改用本機 Python 版。');
-      }
-      await uiTick();
+      $('preview').textContent = '正在載入模型與解碼音訊…';
+      $('log').textContent = '準備中…\n';
 
-      appendLog('載入 transformers.js…');
-      await uiTick();
       const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
       env.allowLocalModels = false;
       env.useBrowserCache = true;
-      appendLog(`載入模型 ${modelId($('model').value)}…`);
-      await uiTick();
       const asr = await pipeline('automatic-speech-recognition', modelId($('model').value), {
         progress_callback: data => {
-          if (data.status) appendLog(`模型狀態：${data.status}${data.file ? ' - ' + data.file : ''}${data.progress ? ' ' + Math.round(data.progress) + '%' : ''}`);
+          if (data.status) $('log').textContent = `模型狀態：${data.status}${data.file ? ' - ' + data.file : ''}\n` + $('log').textContent.slice(0, 2000);
         }
       });
-      appendLog('模型載入完成，開始解碼音訊…');
-      $('preview').textContent = '正在解碼音訊…';
-      await uiTick();
       const audio = await decodeFileToAudio(file);
-      appendLog(`音訊解碼完成：約 ${Math.round(audio.length / 16000)} 秒`);
-      appendLog('開始辨識。這一步可能讓瀏覽器短暫無反應，請等待完成。');
-      $('preview').textContent = '正在辨識語音…請保持頁面開啟。';
-      await uiTick();
+      $('log').textContent = `音訊解碼完成：${Math.round(audio.length / 16000)} 秒\n開始辨識…\n` + $('log').textContent;
       const result = await asr(audio, {
-        chunk_length_s: 20,
-        stride_length_s: 3,
+        chunk_length_s: 30,
+        stride_length_s: 5,
         return_timestamps: true,
         language: languageName($('language').value),
         task: 'transcribe',
@@ -484,7 +459,7 @@
       $('jobTitle').textContent = '已完成';
       $('jobMeta').textContent = `${file.name}｜產生 ${files.length} 個檔案｜瀏覽器端完成`;
       $('bar').className = 'bar done';
-      appendLog(`完成。辨識文字長度：${fullText.length}；上下文修正：${correction.changes.length ? correction.changes.join(', ') : '無'}`);
+      $('log').textContent = `完成。\n辨識文字長度：${fullText.length}\n上下文修正：${correction.changes.length ? correction.changes.join(', ') : '無'}\n` + $('log').textContent;
       $('events').innerHTML = `<div class="event"><b>完成</b>　已在瀏覽器中產生 ${files.map(f => f.name).join('、')}</div>`;
     }
 
