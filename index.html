@@ -238,7 +238,7 @@
       $('jobMeta').innerHTML = 'GitHub Pages 版會在你的瀏覽器內執行 Whisper 模型，不需要 Python 後端；請用「上傳檔案」選擇影片或音檔。';
       $('preview').textContent = '請選擇影片/音檔後按「開始產生字幕」。瀏覽器版已預設最快 tiny 模型；第一次會下載模型，影片越長等待越久。';
       $('log').textContent = '瀏覽器版適合短音檔或短影片。若檔案超過數分鐘，頁面可能看起來暫時沒有反應；長影片建議使用本機 Python 版。';
-      $('events').innerHTML = '<div class="event"><b>GitHub Pages 模式</b>　檔案會留在你的瀏覽器中處理，完成後可下載 SRT / VTT / TXT。完成後下載連結會保留在「轉檔狀態」區塊，不會再被重新整理清掉。</div>';
+      $('events').innerHTML = '<div class="event"><b>GitHub Pages 模式</b>　檔案會留在你的瀏覽器中處理，完成後可下載 SRT / VTT / TXT。</div>';
       $('downloads').innerHTML = '';
       $('startBtn').disabled = false;
       $('startBtn').textContent = '開始產生字幕';
@@ -523,15 +523,10 @@
           form.append('auto_correct', $('autoCorrect').checked ? 'true' : 'false');
           await api('/api/upload-and-transcribe', { method: 'POST', body: form });
         }
-        if (!IS_GITHUB_PAGES) {
-          await refresh();
-          startPolling();
-        }
+        await refresh();
+        startPolling();
       } catch (err) {
-        $('jobTitle').textContent = '轉檔失敗';
-        $('bar').className = 'bar fail';
-        appendLog(`錯誤：${err.message || err}`);
-        alert(err.message || err);
+        alert(err.message);
       } finally {
         $('startBtn').disabled = false;
         $('startBtn').textContent = '開始產生字幕';
