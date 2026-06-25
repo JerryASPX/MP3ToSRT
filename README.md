@@ -1,6 +1,26 @@
 # 影音轉字幕工具
 
-## 單張網頁使用者介面
+## GitHub Pages 瀏覽器版
+
+可直接開啟：
+
+```text
+https://jerryaspx.github.io/MP3ToSRT/
+```
+
+GitHub Pages 版會在使用者瀏覽器內執行 Whisper WebAssembly 模型，不需要 Python 後端；影片/音檔留在本機瀏覽器中處理，不會上傳到伺服器。
+
+瀏覽器版功能：
+
+- 直接選擇影片 / 音檔
+- 產生 YouTube 可用 `.srt` / `.vtt`
+- 產生 `.txt` 逐字稿
+- 台灣繁體中文轉換
+- 分析上下文並修正可能錯字
+
+限制：第一次使用會下載模型；長影片、大檔案或較舊電腦可能很慢。若追求準確度與穩定性，建議使用下面的本機 Python 版。
+
+## 本機 Python 版使用者介面
 
 啟動本機網頁：
 
@@ -24,30 +44,10 @@ http://127.0.0.1:8766/
 - 顯示轉檔狀態、字幕預覽、下載連結
 - 分析上下文並依詞庫修正可能錯字，例如「換姿術」→「換姿勢」
 
-## GitHub Pages 注意事項
+## 架構說明
 
-GitHub Pages 網址：
-
-```text
-https://jerryaspx.github.io/MP3ToSRT/
-```
-
-這個網址只能展示單頁 UI 與原始碼，不能直接轉字幕。原因是 GitHub Pages 只能執行靜態 HTML/CSS/JavaScript，不能執行本工具需要的 Python、faster-whisper、ffmpeg 後端。
-
-要實際轉字幕，請在本機啟動：
-
-```bash
-cd /c/Users/Jerry/subtitle_tool
-./.venv/Scripts/python server.py
-```
-
-然後開啟：
-
-```text
-http://127.0.0.1:8766/
-```
-
-若要讓網路上的使用者也能直接轉字幕，需要另外部署 Python 後端到 Render、Railway、Fly.io、VPS 或 Hugging Face Spaces 等支援長時間運算與檔案上傳的平台。
+- GitHub Pages：純前端瀏覽器版，使用 transformers.js / Whisper WebAssembly；不需 Python 後端，但速度與模型大小受瀏覽器限制。
+- 本機 Python 版：使用 `server.py` + `faster-whisper`，較適合長影片與較高準確度需求。
 
 ## 命令列版本
 

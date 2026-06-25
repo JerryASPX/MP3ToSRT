@@ -197,7 +197,7 @@
       <div class="body"><div id="events" class="events"></div></div>
     </section>
 
-    <div class="footer">本工具只在你的電腦本機執行：<code>http://127.0.0.1:8766/</code></div>
+    <div class="footer">GitHub Pages 可用瀏覽器版；本機 Python 版：<code>http://127.0.0.1:8766/</code></div>
   </main>
 
   <script>
@@ -229,15 +229,18 @@
     }
 
     function renderStaticPagesNotice() {
-      setConnection(false, 'GitHub Pages 靜態展示版');
-      $('jobTitle').textContent = 'GitHub Pages 無法執行 Python 後端';
-      $('jobMeta').innerHTML = '這個網址只會提供畫面與原始碼展示；影音轉字幕需要在你的電腦執行 <code>server.py</code>，或另外部署 Python 後端服務。';
-      $('preview').textContent = '本機使用方式：\n\ncd /c/Users/Jerry/subtitle_tool\n./.venv/Scripts/python server.py\n\n然後開啟：\nhttp://127.0.0.1:8766/';
-      $('log').textContent = '原因：GitHub Pages 只能放 HTML/CSS/JavaScript 靜態檔，不能執行 faster-whisper、ffmpeg 或 Python API。';
-      $('events').innerHTML = '<div class="event"><b>提示</b>　若要讓網路上任何人都能轉字幕，需要把後端部署到支援 Python 的平台，例如 Render、Railway、Fly.io、VPS 或 Hugging Face Spaces。</div>';
-      $('downloads').innerHTML = '<div class="download"><div><b>目前頁面可作為 UI 展示</b><div class="muted">完整轉檔功能請使用本機伺服器。</div></div><a href="https://github.com/JerryASPX/MP3ToSRT">查看原始碼</a></div>';
-      $('startBtn').disabled = true;
-      $('startBtn').textContent = 'GitHub Pages 無後端，請用本機版';
+      setConnection(true, 'GitHub Pages 瀏覽器版');
+      setTab('upload');
+      $('tabPath').disabled = true;
+      $('outputDir').disabled = true;
+      $('jobTitle').textContent = '可直接在瀏覽器產生字幕';
+      $('jobMeta').innerHTML = 'GitHub Pages 版會在你的瀏覽器內執行 Whisper 模型，不需要 Python 後端；請用「上傳檔案」選擇影片或音檔。';
+      $('preview').textContent = '請選擇影片/音檔後按「開始產生字幕」。第一次使用會下載瀏覽器端模型，可能需要較久；檔案不會上傳到伺服器。';
+      $('log').textContent = '瀏覽器版使用 transformers.js / WebAssembly 執行語音辨識。若影片很長或電腦較慢，建議仍使用本機 Python 版。';
+      $('events').innerHTML = '<div class="event"><b>GitHub Pages 模式</b>　檔案會留在你的瀏覽器中處理，完成後可下載 SRT / VTT / TXT。</div>';
+      $('downloads').innerHTML = '';
+      $('startBtn').disabled = false;
+      $('startBtn').textContent = '開始產生字幕';
     }
 
     function renderStatus(status) {
@@ -291,11 +294,182 @@
       pollTimer = null;
     }
 
+
+    function modelId(value) {
+      return {
+        base: 'Xenova/whisper-tiny',
+        small: 'Xenova/whisper-base',
+        medium: 'Xenova/whisper-small',
+        'large-v3': 'Xenova/whisper-small',
+      }[value] || 'Xenova/whisper-tiny';
+    }
+
+    function languageName(value) {
+      return { zh: 'chinese', en: 'english', ja: 'japanese' }[value] || undefined;
+    }
+
+    function formatSrtTime(seconds) {
+      const msTotal = Math.max(0, Math.round(Number(seconds || 0) * 1000));
+      const hours = Math.floor(msTotal / 3600000);
+      const minutes = Math.floor((msTotal % 3600000) / 60000);
+      const secs = Math.floor((msTotal % 60000) / 1000);
+      const ms = msTotal % 1000;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')},${String(ms).padStart(3, '0')}`;
+    }
+
+    function formatVttTime(seconds) {
+      return formatSrtTime(seconds).replace(',', '.');
+    }
+
+    function cleanSubtitleText(text) {
+      return String(text || '').replace(/\s+/g, ' ').trim().replaceAll('-->', '→');
+    }
+
+    function fallbackTraditional(text) {
+      const phraseMap = new Map([
+        ['换姿术', '換姿勢'], ['換姿術', '換姿勢'], ['资术', '姿勢'], ['姿术', '姿勢'],
+        ['字幕档', '字幕檔'], ['视频', '影片'], ['音频', '音訊'], ['上传', '上傳'],
+      ]);
+      for (const [from, to] of phraseMap) text = text.replaceAll(from, to);
+      const charMap = {
+        '汉':'漢','语':'語','湾':'灣','转':'轉','换':'換','终':'終','于':'於','门':'門','类':'類','两':'兩','丑':'醜','画':'畫','举':'舉','双':'雙','还':'還','动':'動','与':'與','档':'檔','体':'體','频':'頻','声':'聲','识':'識','别':'別','产':'產','载':'載','显':'顯','错':'錯','词':'詞','库':'庫','会':'會','为':'為','实':'實','际':'際','后':'後','启':'啟','长':'長','较':'較','输':'輸','质':'質','过':'過','滤':'濾','静':'靜','区':'區','这':'這','个':'個','吗':'嗎','无':'無','发':'發','现':'現','应':'應','该':'該','说':'說','请':'請','选':'選','择':'擇','间':'間','开':'開','关':'關','复':'複','制':'製','术':'術'
+      };
+      return text.replace(/[\u4e00-\u9fff]/g, ch => charMap[ch] || ch);
+    }
+
+    async function toTraditionalTaiwan(text) {
+      if ($('chinese').value === 'none') return text;
+      try {
+        const OpenCC = await import('https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/esm/full.js');
+        const converter = OpenCC.Converter({ from: 'cn', to: $('chinese').value === 'hk' ? 'hk' : 'tw' });
+        return converter(text);
+      } catch (err) {
+        console.warn('OpenCC browser conversion failed; using fallback map.', err);
+        return fallbackTraditional(text);
+      }
+    }
+
+    function applyBrowserCorrections(text) {
+      if (!$('autoCorrect').checked) return { text, changes: [] };
+      const rules = [
+        { wrong: '換姿術', right: '換姿勢', hints: ['出門', '活動', '手', '酸', '姿'] },
+        { wrong: '换姿术', right: '換姿勢', hints: ['出门', '活动', '手', '酸', '姿'] },
+        { wrong: '資術', right: '姿勢', hints: ['換', '活動', '手', '酸'] },
+        { wrong: '资术', right: '姿勢', hints: ['换', '活动', '手', '酸'] },
+        { wrong: '姿術', right: '姿勢', hints: ['換', '活動', '手', '酸'] },
+        { wrong: '字幕黨', right: '字幕檔', hints: ['上傳', 'YouTube', 'SRT', 'VTT', '檔案'] },
+        { wrong: '優兔', right: 'YouTube', hints: ['字幕', '上傳', '影片'] },
+      ];
+      const changes = [];
+      for (const rule of rules) {
+        if (text.includes(rule.wrong) && (!rule.hints.length || rule.hints.some(h => text.includes(h)))) {
+          text = text.replaceAll(rule.wrong, rule.right);
+          changes.push(`${rule.wrong} → ${rule.right}`);
+        }
+      }
+      return { text, changes: [...new Set(changes)] };
+    }
+
+    function segmentsFromAsr(result) {
+      const chunks = Array.isArray(result.chunks) ? result.chunks : [];
+      if (!chunks.length) {
+        return [{ start: 0, end: 5, text: cleanSubtitleText(result.text || '') }].filter(s => s.text);
+      }
+      return chunks.map((chunk, i) => {
+        const ts = chunk.timestamp || [i * 5, (i + 1) * 5];
+        const start = Number(ts[0] ?? i * 5);
+        const end = Number(ts[1] ?? start + 5);
+        return { start, end: Math.max(end, start + 0.5), text: cleanSubtitleText(chunk.text) };
+      }).filter(s => s.text);
+    }
+
+    function makeSubtitleFiles(baseName, segments) {
+      const srt = segments.map((s, i) => `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(s.end)}\n${s.text}\n`).join('\n');
+      const vtt = 'WEBVTT\n\n' + segments.map(s => `${formatVttTime(s.start)} --> ${formatVttTime(s.end)}\n${s.text}\n`).join('\n');
+      const txt = segments.map(s => s.text).join('\n') + '\n';
+      const selected = $('format').value;
+      const files = [];
+      if (selected === 'all' || selected === 'srt') files.push({ name: `${baseName}.srt`, content: srt, type: 'application/x-subrip;charset=utf-8' });
+      if (selected === 'all' || selected === 'vtt') files.push({ name: `${baseName}.vtt`, content: vtt, type: 'text/vtt;charset=utf-8' });
+      if (selected === 'all' || selected === 'txt') files.push({ name: `${baseName}.txt`, content: txt, type: 'text/plain;charset=utf-8' });
+      return { files, preview: srt || vtt || txt };
+    }
+
+    function renderBrowserDownloads(files) {
+      $('downloads').innerHTML = files.map(file => {
+        const blob = new Blob([file.content], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        return `<div class="download"><div><b>${file.name}</b><div class="muted">瀏覽器產生｜${blob.size} bytes</div></div><a download="${file.name}" href="${url}">下載</a></div>`;
+      }).join('');
+    }
+
+    async function decodeFileToAudio(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('這個瀏覽器不支援 Web Audio API。');
+      const ctx = new AudioContextClass({ sampleRate: 16000 });
+      const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+      const source = audioBuffer.getChannelData(0);
+      if (audioBuffer.sampleRate === 16000) return source;
+      const ratio = audioBuffer.sampleRate / 16000;
+      const length = Math.floor(source.length / ratio);
+      const resampled = new Float32Array(length);
+      for (let i = 0; i < length; i++) resampled[i] = source[Math.floor(i * ratio)] || 0;
+      return resampled;
+    }
+
+    async function browserTranscribe() {
+      const file = $('mediaFile').files[0];
+      if (!file) throw new Error('GitHub Pages 版請先切到「上傳檔案」並選擇影片或音檔。');
+      setConnection(true, '瀏覽器轉檔中');
+      $('jobTitle').textContent = '瀏覽器轉檔中…';
+      $('jobMeta').textContent = `${file.name}｜模型 ${modelId($('model').value)}｜請保持頁面開啟`;
+      $('bar').className = 'bar running';
+      $('downloads').innerHTML = '';
+      $('preview').textContent = '正在載入模型與解碼音訊…';
+      $('log').textContent = '準備中…\n';
+
+      const { pipeline, env } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2');
+      env.allowLocalModels = false;
+      env.useBrowserCache = true;
+      const asr = await pipeline('automatic-speech-recognition', modelId($('model').value), {
+        progress_callback: data => {
+          if (data.status) $('log').textContent = `模型狀態：${data.status}${data.file ? ' - ' + data.file : ''}\n` + $('log').textContent.slice(0, 2000);
+        }
+      });
+      const audio = await decodeFileToAudio(file);
+      $('log').textContent = `音訊解碼完成：${Math.round(audio.length / 16000)} 秒\n開始辨識…\n` + $('log').textContent;
+      const result = await asr(audio, {
+        chunk_length_s: 30,
+        stride_length_s: 5,
+        return_timestamps: true,
+        language: languageName($('language').value),
+        task: 'transcribe',
+      });
+      let segments = segmentsFromAsr(result);
+      let fullText = await toTraditionalTaiwan(segments.map(s => s.text).join('\n'));
+      const correction = applyBrowserCorrections(fullText);
+      fullText = correction.text;
+      const lines = fullText.split('\n');
+      segments = segments.map((segment, index) => ({ ...segment, text: cleanSubtitleText(lines[index] || segment.text) }));
+      const baseName = file.name.replace(/\.[^.]+$/, '') || 'subtitles';
+      const { files, preview } = makeSubtitleFiles(baseName, segments);
+      renderBrowserDownloads(files);
+      $('preview').textContent = preview || '沒有偵測到語音內容。';
+      $('jobTitle').textContent = '已完成';
+      $('jobMeta').textContent = `${file.name}｜產生 ${files.length} 個檔案｜瀏覽器端完成`;
+      $('bar').className = 'bar done';
+      $('log').textContent = `完成。\n辨識文字長度：${fullText.length}\n上下文修正：${correction.changes.length ? correction.changes.join(', ') : '無'}\n` + $('log').textContent;
+      $('events').innerHTML = `<div class="event"><b>完成</b>　已在瀏覽器中產生 ${files.map(f => f.name).join('、')}</div>`;
+    }
+
     async function start() {
       $('startBtn').disabled = true;
       $('startBtn').textContent = '送出中…';
       try {
-        if (mode === 'path') {
+        if (IS_GITHUB_PAGES) {
+          await browserTranscribe();
+        } else if (mode === 'path') {
           await api('/api/transcribe', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
